@@ -1,0 +1,45 @@
+name: Auto-post to Instagram
+
+on:
+  schedule:
+    # Runs 3x/day (UTC). Adjust to your audience's timezone as needed.
+    - cron: "0 9 * * *"   # 09:00 UTC
+    - cron: "0 14 * * *"  # 14:00 UTC
+    - cron: "0 20 * * *"  # 20:00 UTC
+  workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate image + caption
+        id: generate
+        run: python scripts/generate_content.py
+
+      - name: Commit generated media
+        run: |
+          git config user.name "forgemind-bot"
+          git config user.email "forgemind-bot@users.noreply.github.com"
+          git add media/ state/
+          git commit -m "Add generated post: ${{ steps.generate.outputs.image_filename }}"
+          git push
+
+      - name: Publish to Instagram
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: python scripts/post_to_instagram.py ${{ steps.generate.outputs.manifest_path }}
